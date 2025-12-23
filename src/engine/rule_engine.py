@@ -35,13 +35,26 @@ class RuleEngine:
             if metric_name in exp_data["metrics"]:
                 return exp_data["metrics"][metric_name]
             logs = exp_data["logs"]
+            
+            # Check if logs DataFrame is empty
+            if logs.empty:
+                raise KeyError(f"Logs are empty for experiment '{exp_name}'. Cannot extract metric '{metric_name}'.")
+            
             if metric_name == "last_eval_loss":
+                if "eval_loss" not in logs.columns:
+                    raise KeyError(f"Column 'eval_loss' not found in logs for experiment '{exp_name}'. Available columns: {list(logs.columns)}")
                 return float(logs["eval_loss"].dropna().iloc[-1])
             if metric_name == "min_eval_loss":
+                if "eval_loss" not in logs.columns:
+                    raise KeyError(f"Column 'eval_loss' not found in logs for experiment '{exp_name}'. Available columns: {list(logs.columns)}")
                 return float(logs["eval_loss"].dropna().min())
             if metric_name == "last_train_loss":
+                if "train_loss" not in logs.columns:
+                    raise KeyError(f"Column 'train_loss' not found in logs for experiment '{exp_name}'. Available columns: {list(logs.columns)}")
                 return float(logs["train_loss"].dropna().iloc[-1])
             if metric_name == "min_train_loss":
+                if "train_loss" not in logs.columns:
+                    raise KeyError(f"Column 'train_loss' not found in logs for experiment '{exp_name}'. Available columns: {list(logs.columns)}")
                 return float(logs["train_loss"].dropna().min())
             raise KeyError(f"Unknown metric '{metric_name}' for {exp_name}")
 

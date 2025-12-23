@@ -293,6 +293,10 @@ class FinetuneModel:
         df_train = pd.DataFrame(train)[["step", "loss"]] if train else pd.DataFrame()
         df_eval = pd.DataFrame(evals)[["step", "eval_loss"]] if evals else pd.DataFrame()
 
+        # Rename "loss" to "train_loss" to match rule engine expectations
+        if not df_train.empty:
+            df_train = df_train.rename(columns={"loss": "train_loss"})
+
         if not df_train.empty and not df_eval.empty:
             return pd.merge(df_train, df_eval, on="step", how="outer")
         return df_train
