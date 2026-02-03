@@ -1,6 +1,6 @@
 # Automated Fine-tuning System
 
-A modular, production-ready system for automated LLM fine-tuning with rule-based experiment execution and intelligent model selection. Cross-platform compatible (Windows, Linux, macOS) with automatic GPU detection and CUDA support.
+A modular, production-ready system for automated LLM fine-tuning with rule-based experiment execution and intelligent model selection. Cross-platform compatible (Windows, Linux) with automatic GPU detection and CUDA support.
 
 ## 🌟 Features
 
@@ -10,7 +10,7 @@ A modular, production-ready system for automated LLM fine-tuning with rule-based
 - **📈 Comprehensive Metrics**: Precision, Recall, F1 Score, and Latency tracking
 - **🔄 PDF-to-QA Generation**: Automatic dataset creation from PDF documents
 - **💾 Dataset-specific Results**: Organized output with date tracking per dataset
-- **🌐 Cross-platform**: Works on Windows, Linux, macOS, Google Colab, and Cloud environments
+- **🌐 Cross-platform**: Works on Windows, Linux, Google Colab, and Cloud environments
 - **📝 Advanced Logging**: Detailed logging system for debugging and monitoring
 - **🖥️ GPU Optimization**: Intelligent GPU detection with automatic CUDA-compatible PyTorch installation
 - **💾 Memory Management**: Automatic batch size adjustment for low-memory GPUs
@@ -28,7 +28,6 @@ A modular, production-ready system for automated LLM fine-tuning with rule-based
 - [Advanced Features](#advanced-features)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
-- [License](#license)
 
 ## Prerequisites
 
@@ -60,7 +59,7 @@ python -m venv venv
 .\venv\Scripts\activate
 ```
 
-**On Linux/macOS:**
+**On Linux:**
 ```bash
 # Create virtual environment
 python3 -m venv venv
@@ -82,7 +81,7 @@ python run.py --install-packages
 
 **What this command does:**
 - ✅ Upgrades pip to the latest version
-- ✅ Detects your operating system (Windows/Linux/macOS)
+- ✅ Detects your operating system (Windows/Linux)
 - ✅ Installs Unsloth (with Windows-specific extras if on Windows)
 - ✅ Installs `triton-windows==3.3.1.post21` on Windows
 - ✅ Detects CUDA version using `nvidia-smi`
@@ -129,13 +128,10 @@ After installation, you can run experiments:
 ```bash
 # Make sure virtual environment is activated
 # Windows: .\venv\Scripts\activate
-# Linux/macOS: source venv/bin/activate
+# Linux: source venv/bin/activate
 
 # Run a single experiment configuration
 python run.py configs/config_gemma3.json
-
-# Run multiple configurations
-python run.py configs/config_gemma3.json configs/config_qwen3.json
 ```
 
 ### With Custom Parameters
@@ -392,7 +388,7 @@ python run.py configs/config_gemma3.json
 - Forces single-process mode for dataset processing
 - Adjusts batch size for GPUs with < 6GB memory
 
-### Linux/macOS
+### Linux
 
 **Setup:**
 ```bash
@@ -511,7 +507,6 @@ pip install <package-name>
 ```bash
 # Make sure virtual environment is activated
 # Windows: .\venv\Scripts\activate
-# Linux/macOS: source venv/bin/activate
 
 # Reinstall packages
 python run.py --install-packages
@@ -571,38 +566,10 @@ Contributions are welcome! Please follow these steps:
 
 - Follow PEP 8 style guide
 - Add docstrings to all functions
-- Include unit tests for new features
 - Update README.md with new features
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📧 Contact
-
-For questions, issues, or suggestions:
-- Open an issue on GitHub
-- Contact: [your-email@example.com]
 
 ## 🙏 Acknowledgments
 
 - [Unsloth](https://github.com/unslothai/unsloth) for efficient fine-tuning
 - [HuggingFace](https://huggingface.co/) for transformers and datasets
 - [TRL](https://github.com/huggingface/trl) for SFT training
-
-## 📚 Citation
-
-If you use this system in your research, please cite:
-
-```bibtex
-@software{automated_finetuning_system,
-  title = {Automated Fine-tuning System},
-  author = {Your Name},
-  year = {2024},
-  url = {https://github.com/your-username/finetuning-system}
-}
-```
-
----
-
-**Made with ❤️ for the AI community**
