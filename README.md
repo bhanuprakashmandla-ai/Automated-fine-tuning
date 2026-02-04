@@ -224,6 +224,8 @@ Create a JSON configuration file in the `configs/` directory:
 }
 ```
 
+**Secrets note:** You can omit `hf_token` and set `HF_TOKEN` or `HUGGINGFACE_TOKEN` in the environment instead.
+
 ### Dataset Configuration Options
 
 #### 1. CSV/JSON File
@@ -268,6 +270,8 @@ Create a JSON configuration file in the `configs/` directory:
   }
 }
 ```
+
+**Secrets note:** You can omit `api_key` and set `OPENAI_API_KEY` or `LLM_API_KEY` in the environment instead.
 
 ### Rule-based Experiment Execution
 
