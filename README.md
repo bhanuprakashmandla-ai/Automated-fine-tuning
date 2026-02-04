@@ -119,6 +119,16 @@ python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA Av
 # CUDA Available: True
 ```
 
+### Optional: Use a `.env` File for Secrets
+
+You can place secrets in a `.env` file at the repository root (auto-loaded by `run.py` if present). Values in the shell environment take precedence.
+
+Example `.env`:
+```
+OPENAI_API_KEY=your_openai_key
+HF_TOKEN=your_huggingface_token
+```
+
 ## 🚀 Quick Start
 
 ### Basic Usage
