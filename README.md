@@ -119,6 +119,16 @@ python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA Av
 # CUDA Available: True
 ```
 
+### Optional: Use a `.env` File for Secrets
+
+You can place secrets in a `.env` file at the repository root (auto-loaded by `run.py` if present). Values in the shell environment take precedence.
+
+Example `.env`:
+```
+OPENAI_API_KEY=your_openai_key
+HF_TOKEN=your_huggingface_token
+```
+
 ## 🚀 Quick Start
 
 ### Basic Usage
@@ -224,6 +234,8 @@ Create a JSON configuration file in the `configs/` directory:
 }
 ```
 
+**Secrets note:** You can omit `hf_token` and set `HF_TOKEN` or `HUGGINGFACE_TOKEN` in the environment instead.
+
 ### Dataset Configuration Options
 
 #### 1. CSV/JSON File
@@ -268,6 +280,8 @@ Create a JSON configuration file in the `configs/` directory:
   }
 }
 ```
+
+**Secrets note:** You can omit `api_key` and set `OPENAI_API_KEY` or `LLM_API_KEY` in the environment instead.
 
 ### Rule-based Experiment Execution
 

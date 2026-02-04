@@ -9,6 +9,7 @@ import pandas as pd
 
 from ..data import DataPreparation
 from ..models import FinetuneModel
+from ..config_validation import validate_config
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class RuleEngine:
     def run(self, config_path):
         with open(config_path, "r") as config_file:
             config = json.load(config_file)
+        validate_config(config, config_path)
 
         self.system_prompt = config['system_prompt']
         self.output_dir = config['output_dir']
