@@ -9,6 +9,7 @@ import pandas as pd
 
 from ..data import DataPreparation
 from ..models import FinetuneModel
+from ..config_validation import validate_config
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class RuleEngine:
     def run(self, config_path):
         with open(config_path, "r") as config_file:
             config = json.load(config_file)
+        validate_config(config, config_path)
 
         self.system_prompt = config['system_prompt']
         self.output_dir = config['output_dir']
@@ -111,6 +113,7 @@ class RuleEngine:
             config = results["config"]
             model_name = config["model_name"]
             output_dir = config['output_dir']
+            dataset_label = (self.dataset_name or "dataset").replace(os.sep, "_").replace("/", "_")
             metrics_list = []
             max_f1 = float("-inf")
             best_model = None
@@ -124,7 +127,7 @@ class RuleEngine:
                 tokenizer = exp_data["tokenizer"]
                 exp_dir = os.path.join(output_dir, "models", model_name, exp_name)
                 os.makedirs(exp_dir, exist_ok=True)
-                log_path = os.path.join(output_dir, f"logs_{self.dataset_name}_{exp_name}.csv")
+                log_path = os.path.join(output_dir, f"logs_{dataset_label}_{exp_name}.csv")
                 logs.to_csv(log_path, index=False)
                 model.save_pretrained(exp_dir)
                 tokenizer.save_pretrained(exp_dir)
@@ -134,7 +137,7 @@ class RuleEngine:
                     max_f1 = f1
                     best_model = f"{model_name}/{exp_name}"
 
-            metrics_path = os.path.join(output_dir, f"metrics_{self.dataset_name}.csv")
+            metrics_path = os.path.join(output_dir, f"metrics_{dataset_label}.csv")
             metrics_df = pd.DataFrame(metrics_list)
             if os.path.exists(metrics_path):
                 metrics_df.to_csv(metrics_path, mode="a", index=False, header=False)
