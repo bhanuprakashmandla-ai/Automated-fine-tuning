@@ -374,6 +374,21 @@ output/
 | `dataset` | Dataset name |
 | `date` | Experiment date (YYYY-MM-DD) |
 
+### HTML Report
+
+After a run completes, the system generates an HTML report in the output directory:
+
+```
+results/
+└── report_<dataset>.html
+```
+
+The report includes:
+- Dataset and model metadata
+- Per-experiment metrics (precision, recall, F1, latency)
+- Experiment configurations
+- Training/evaluation loss curves
+
 ## 🌐 Platform-Specific Notes
 
 ### Windows

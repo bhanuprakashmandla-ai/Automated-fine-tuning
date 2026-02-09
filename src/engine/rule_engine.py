@@ -10,6 +10,7 @@ import pandas as pd
 from ..data import DataPreparation
 from ..models import FinetuneModel
 from ..config_validation import validate_config
+from ..reporting import generate_html_report
 
 logger = logging.getLogger(__name__)
 
@@ -94,13 +95,35 @@ class RuleEngine:
             sft_config = config['sft']
             if not config['rules']:
                 model, tokenizer, logs, metrics = self.run_experiment(train_data, test_data, model_config, sft_config)
-                result = {"model": model, "tokenizer": tokenizer, "logs": logs, "metrics": metrics}
+                result = {
+                    "model": model,
+                    "tokenizer": tokenizer,
+                    "logs": logs,
+                    "metrics": metrics,
+                    "config": {
+                        "train_batch": config["train_batch"],
+                        "model": model_config,
+                        "sft": sft_config,
+                        "rules": config["rules"],
+                    },
+                }
                 exp_results['exp_results'][exp] = result
             else:
                 for rule in config['rules']:
                     if self._check_conditions(rule['conditions'], exp_results):
                         model, tokenizer, logs, metrics = self.run_experiment(train_data, test_data, model_config, sft_config)
-                        result = {"model": model, "tokenizer": tokenizer, "logs": logs, "metrics": metrics}
+                        result = {
+                            "model": model,
+                            "tokenizer": tokenizer,
+                            "logs": logs,
+                            "metrics": metrics,
+                            "config": {
+                                "train_batch": config["train_batch"],
+                                "model": model_config,
+                                "sft": sft_config,
+                                "rules": config["rules"],
+                            },
+                        }
                         exp_results['exp_results'][exp] = result
                         if not config['run_always']:
                             return exp_results
@@ -143,6 +166,19 @@ class RuleEngine:
                 metrics_df.to_csv(metrics_path, mode="a", index=False, header=False)
             else:
                 metrics_df.to_csv(metrics_path, index=False)
+            try:
+                report_html = generate_html_report(
+                    results=results,
+                    output_dir=output_dir,
+                    dataset_name=self.dataset_name or "dataset",
+                    dataset_label=dataset_label,
+                )
+                report_path = os.path.join(output_dir, f"report_{dataset_label}.html")
+                with open(report_path, "w", encoding="utf-8") as report_file:
+                    report_file.write(report_html)
+                logger.info(f"HTML report written to {report_path}")
+            except Exception as report_error:
+                logger.warning(f"Failed to generate HTML report: {report_error}")
             logger.info(f"Results saved successfully. Best model: {best_model} (F1={max_f1:.4f})")
             return output_dir
         except Exception as e:
