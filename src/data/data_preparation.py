@@ -18,10 +18,16 @@ logger = logging.getLogger(__name__)
 
 class QAGenerationPipeline:
     def __init__(self, llm_config):
+        api_key = llm_config.get("api_key") or os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "Missing LLM API key. Set 'api_key' in pdf_config.llm_config or "
+                "define OPENAI_API_KEY/LLM_API_KEY environment variable."
+            )
         self.client = LLMClient(
             api_base=llm_config['api_base'],
             model_name=llm_config['model_name'],
-            api_key=llm_config['api_key']
+            api_key=api_key
         )
         self.generator = QAGenerator(client=self.client)
 
@@ -148,7 +154,12 @@ class DataPreparation:
 
     def get_train_test_data(self, dataset_config):
         if dataset_config['type'] == "huggingface":
-            dataset = load_dataset(dataset_config['path'], split="train", token=dataset_config.get('hf_token'))
+            hf_token = (
+                dataset_config.get('hf_token')
+                or os.getenv("HF_TOKEN")
+                or os.getenv("HUGGINGFACE_TOKEN")
+            )
+            dataset = load_dataset(dataset_config['path'], split="train", token=hf_token)
         elif dataset_config['splitter'] == "pdf":
             qa_pairs = self._generate_qa_pairs_from_pdf(dataset_config['path'], dataset_config['type'], dataset_config['pdf_config'])
             dataset = Dataset.from_list(qa_pairs)
