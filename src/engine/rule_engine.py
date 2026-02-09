@@ -9,6 +9,8 @@ import pandas as pd
 
 from ..data import DataPreparation
 from ..models import FinetuneModel
+from ..config_validation import validate_config
+from ..reporting import generate_html_report
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,7 @@ class RuleEngine:
     def run(self, config_path):
         with open(config_path, "r") as config_file:
             config = json.load(config_file)
+        validate_config(config, config_path)
 
         self.system_prompt = config['system_prompt']
         self.output_dir = config['output_dir']
@@ -92,13 +95,35 @@ class RuleEngine:
             sft_config = config['sft']
             if not config['rules']:
                 model, tokenizer, logs, metrics = self.run_experiment(train_data, test_data, model_config, sft_config)
-                result = {"model": model, "tokenizer": tokenizer, "logs": logs, "metrics": metrics}
+                result = {
+                    "model": model,
+                    "tokenizer": tokenizer,
+                    "logs": logs,
+                    "metrics": metrics,
+                    "config": {
+                        "train_batch": config["train_batch"],
+                        "model": model_config,
+                        "sft": sft_config,
+                        "rules": config["rules"],
+                    },
+                }
                 exp_results['exp_results'][exp] = result
             else:
                 for rule in config['rules']:
                     if self._check_conditions(rule['conditions'], exp_results):
                         model, tokenizer, logs, metrics = self.run_experiment(train_data, test_data, model_config, sft_config)
-                        result = {"model": model, "tokenizer": tokenizer, "logs": logs, "metrics": metrics}
+                        result = {
+                            "model": model,
+                            "tokenizer": tokenizer,
+                            "logs": logs,
+                            "metrics": metrics,
+                            "config": {
+                                "train_batch": config["train_batch"],
+                                "model": model_config,
+                                "sft": sft_config,
+                                "rules": config["rules"],
+                            },
+                        }
                         exp_results['exp_results'][exp] = result
                         if not config['run_always']:
                             return exp_results
@@ -111,6 +136,7 @@ class RuleEngine:
             config = results["config"]
             model_name = config["model_name"]
             output_dir = config['output_dir']
+            dataset_label = (self.dataset_name or "dataset").replace(os.sep, "_").replace("/", "_")
             metrics_list = []
             max_f1 = float("-inf")
             best_model = None
@@ -124,7 +150,7 @@ class RuleEngine:
                 tokenizer = exp_data["tokenizer"]
                 exp_dir = os.path.join(output_dir, "models", model_name, exp_name)
                 os.makedirs(exp_dir, exist_ok=True)
-                log_path = os.path.join(output_dir, f"logs_{self.dataset_name}_{exp_name}.csv")
+                log_path = os.path.join(output_dir, f"logs_{dataset_label}_{exp_name}.csv")
                 logs.to_csv(log_path, index=False)
                 model.save_pretrained(exp_dir)
                 tokenizer.save_pretrained(exp_dir)
@@ -134,12 +160,25 @@ class RuleEngine:
                     max_f1 = f1
                     best_model = f"{model_name}/{exp_name}"
 
-            metrics_path = os.path.join(output_dir, f"metrics_{self.dataset_name}.csv")
+            metrics_path = os.path.join(output_dir, f"metrics_{dataset_label}.csv")
             metrics_df = pd.DataFrame(metrics_list)
             if os.path.exists(metrics_path):
                 metrics_df.to_csv(metrics_path, mode="a", index=False, header=False)
             else:
                 metrics_df.to_csv(metrics_path, index=False)
+            try:
+                report_html = generate_html_report(
+                    results=results,
+                    output_dir=output_dir,
+                    dataset_name=self.dataset_name or "dataset",
+                    dataset_label=dataset_label,
+                )
+                report_path = os.path.join(output_dir, f"report_{dataset_label}.html")
+                with open(report_path, "w", encoding="utf-8") as report_file:
+                    report_file.write(report_html)
+                logger.info(f"HTML report written to {report_path}")
+            except Exception as report_error:
+                logger.warning(f"Failed to generate HTML report: {report_error}")
             logger.info(f"Results saved successfully. Best model: {best_model} (F1={max_f1:.4f})")
             return output_dir
         except Exception as e:
