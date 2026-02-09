@@ -22,10 +22,23 @@ class RuleEngine:
         self.dataset_name = None
 
     def run_experiment(self, train_data, test_data, model_config, sft_config):
+        logger.info("=" * 60)
+        logger.info(f"Starting experiment for model: {model_config.get('model_name', 'unknown')}")
+        logger.info(f"Chat template: {model_config.get('chat_template', 'unknown')}")
+        logger.info(
+            "SFT config: batch_size=%s, epochs=%s, lr=%s",
+            sft_config.get("batch_size"),
+            sft_config.get("epochs"),
+            sft_config.get("learning_rate"),
+        )
+        logger.info("=" * 60)
         finetuner = FinetuneModel(model_config, sft_config, self.system_prompt)
         model, tokenizer = finetuner.load_model()
         model, tokenizer, logs = finetuner.train_model(model, tokenizer, train_data, test_data)
         results = finetuner.evaluate_model(model, tokenizer, test_data, model_config['chat_template'])
+        logger.info("=" * 60)
+        logger.info("Experiment completed.")
+        logger.info("=" * 60)
         return model, tokenizer, logs, results
 
     def _check_conditions(self, conditions, results):
@@ -93,6 +106,12 @@ class RuleEngine:
             train_data = experiments_data[config['train_batch']]
             model_config = config['model']
             sft_config = config['sft']
+            logger.info("=" * 60)
+            logger.info("Experiment: %s", exp)
+            logger.info("Train batch: %s", config['train_batch'])
+            logger.info("Run always: %s", config.get('run_always', False))
+            logger.info("Rules: %s", "none" if not config['rules'] else config['rules'])
+            logger.info("=" * 60)
             if not config['rules']:
                 model, tokenizer, logs, metrics = self.run_experiment(train_data, test_data, model_config, sft_config)
                 result = {
