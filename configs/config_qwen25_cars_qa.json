@@ -1,0 +1,118 @@
+{
+  "auto_baseline": true,
+  "dataset": {
+    "type": "huggingface",
+    "name": "cars_details_qa",
+    "path": "Majipa/Cars_details_QA",
+    "hf_token": "",
+    "splitter": "csv",
+    "input_fields": ["question"],
+    "output_fields": ["answer"],
+    "batch_config": {
+      "first_batch": 0.125,
+      "second_batch": 0.25,
+      "third_batch": 0.375,
+      "test_batch": 0.5
+    },
+    "pdf_config": {
+      "llm_config": {
+        "api_base": "",
+        "api_key": "",
+        "model_name": "flotorch/gpt-4o-mini"
+      },
+      "chunk_size": 2048,
+      "overlap": 200,
+      "qa_pairs_per_chunk": 3,
+      "max_generation_tokens": 512
+    }
+  },
+  "output_dir": "results",
+  "system_prompt": "You are an automotive assistant focused on car specifications and vehicle details. Answer using only the information available in the training data. Be concise, factual, and structured. If the exact answer is unavailable, respond with: 'I don't have enough information to answer this question.'",
+  "experiments": {
+    "exp1": {
+      "run_always": true,
+      "train_batch": "first_batch",
+      "model": {
+        "model_name": "Qwen/Qwen2.5-0.5B",
+        "rank": 64,
+        "alpha": 128,
+        "max_seq_len": 2048,
+        "dropout": 0,
+        "chat_template": "qwen3-instruct"
+      },
+      "sft": {
+        "learning_rate": 1e-5,
+        "batch_size": 8,
+        "epochs": 5,
+        "early_stopping_criteria": false,
+        "logging_steps": 50,
+        "eval_accumulation_steps": 30,
+        "save_steps": 50,
+        "eval_steps": 50
+      },
+      "rules": []
+    },
+    "exp2": {
+      "run_always": true,
+      "train_batch": "second_batch",
+      "model": {
+        "model_name": "Qwen/Qwen2.5-0.5B",
+        "rank": 64,
+        "alpha": 128,
+        "max_seq_len": 2048,
+        "dropout": 0,
+        "chat_template": "qwen3-instruct"
+      },
+      "sft": {
+        "learning_rate": 1e-5,
+        "batch_size": 8,
+        "epochs": 5,
+        "early_stopping_criteria": true,
+        "logging_steps": 50,
+        "eval_accumulation_steps": 30,
+        "save_steps": 50,
+        "eval_steps": 50
+      },
+      "rules": [
+        {
+          "conditions": [
+            { "left": "exp1.last_train_loss", "op": "<=", "right": "exp1.min_train_loss" },
+            { "left": "exp1.last_eval_loss", "op": "<=", "right": "exp1.min_eval_loss" },
+            { "left": "exp1.f1", "op": ">", "right": "exp0.f1" }
+          ]
+        }
+      ]
+    },
+    "exp3": {
+      "run_always": false,
+      "train_batch": "third_batch",
+      "model": {
+        "model_name": "Qwen/Qwen2.5-0.5B",
+        "rank": 64,
+        "alpha": 128,
+        "max_seq_len": 2048,
+        "dropout": 0,
+        "chat_template": "qwen3-instruct"
+      },
+      "sft": {
+        "learning_rate": 5e-5,
+        "batch_size": 8,
+        "epochs": 10,
+        "early_stopping_criteria": true,
+        "logging_steps": 50,
+        "eval_accumulation_steps": 30,
+        "save_steps": 50,
+        "eval_steps": 50
+      },
+      "rules": [
+        {
+          "conditions": [
+            { "left": "exp2.last_train_loss", "op": "<=", "right": "exp2.min_train_loss" },
+            { "left": "exp2.last_eval_loss", "op": "<=", "right": "exp2.min_eval_loss" },
+            { "left": "exp2.f1", "op": ">=", "right": "exp1.f1" }
+          ]
+        }
+      ]
+    }
+  }
+}

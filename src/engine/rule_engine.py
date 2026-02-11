@@ -9,6 +9,8 @@ import pandas as pd
 
 from ..data import DataPreparation
 from ..models import FinetuneModel
+from ..config_validation import validate_config
+from ..reporting import generate_html_report
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +21,30 @@ class RuleEngine:
         self.output_dir = None
         self.dataset_name = None
 
-    def run_experiment(self, train_data, test_data, model_config, sft_config):
+    def run_experiment(self, train_data, test_data, model_config, sft_config=None, mode="finetune"):
+        logger.info("=" * 60)
+        logger.info(f"Starting experiment for model: {model_config.get('model_name', 'unknown')}")
+        logger.info(f"Chat template: {model_config.get('chat_template', 'unknown')}")
+        if mode == "finetune":
+            logger.info(
+                "SFT config: batch_size=%s, epochs=%s, lr=%s",
+                sft_config.get("batch_size"),
+                sft_config.get("epochs"),
+                sft_config.get("learning_rate"),
+            )
+        else:
+            logger.info("Mode: baseline evaluation (no fine-tuning)")
+        logger.info("=" * 60)
         finetuner = FinetuneModel(model_config, sft_config, self.system_prompt)
         model, tokenizer = finetuner.load_model()
-        model, tokenizer, logs = finetuner.train_model(model, tokenizer, train_data, test_data)
+        if mode == "finetune":
+            model, tokenizer, logs = finetuner.train_model(model, tokenizer, train_data, test_data)
+        else:
+            logs = pd.DataFrame(columns=["step", "train_loss", "eval_loss"])
         results = finetuner.evaluate_model(model, tokenizer, test_data, model_config['chat_template'])
+        logger.info("=" * 60)
+        logger.info("Experiment completed.")
+        logger.info("=" * 60)
         return model, tokenizer, logs, results
 
     def _check_conditions(self, conditions, results):
@@ -69,6 +90,7 @@ class RuleEngine:
     def run(self, config_path):
         with open(config_path, "r") as config_file:
             config = json.load(config_file)
+        validate_config(config, config_path)
 
         self.system_prompt = config['system_prompt']
         self.output_dir = config['output_dir']
@@ -78,6 +100,7 @@ class RuleEngine:
         experiments_data = data_loader.get_train_test_data(config['dataset'])
         test_data = experiments_data['test_data']
         experiments = config['experiments']
+        auto_baseline = config.get("auto_baseline", True)
         
         result_config = {
             "model_name": experiments['exp1']['model']['model_name'],
@@ -86,19 +109,88 @@ class RuleEngine:
         }
         exp_results = {"config": result_config, "exp_results": {}}
 
+        if auto_baseline:
+            first_experiment = next(iter(experiments.values()))
+            baseline_model_config = first_experiment["model"]
+            logger.info("=" * 60)
+            logger.info("Experiment: exp0 (automatic baseline)")
+            logger.info("Train batch: none")
+            logger.info("Run always: true")
+            logger.info("Rules: none")
+            logger.info("=" * 60)
+            try:
+                model, tokenizer, logs, metrics = self.run_experiment(
+                    train_data=None,
+                    test_data=test_data,
+                    model_config=baseline_model_config,
+                    sft_config=None,
+                    mode="baseline_eval",
+                )
+            except TypeError:
+                # Backward-compatibility fallback if older run_experiment signature is loaded.
+                logger.warning(
+                    "Baseline mode argument not supported by run_experiment; "
+                    "falling back to direct evaluate-only baseline path."
+                )
+                finetuner = FinetuneModel(baseline_model_config, None, self.system_prompt)
+                model, tokenizer = finetuner.load_model()
+                logs = pd.DataFrame(columns=["step", "train_loss", "eval_loss"])
+                metrics = finetuner.evaluate_model(model, tokenizer, test_data, baseline_model_config['chat_template'])
+            exp_results['exp_results']["exp0"] = {
+                "model": model,
+                "tokenizer": tokenizer,
+                "logs": logs,
+                "metrics": metrics,
+                "config": {
+                    "mode": "baseline_eval",
+                    "train_batch": None,
+                    "model": baseline_model_config,
+                    "sft": None,
+                    "rules": [],
+                },
+            }
+
         for exp, config in experiments.items():
             train_data = experiments_data[config['train_batch']]
             model_config = config['model']
             sft_config = config['sft']
+            logger.info("=" * 60)
+            logger.info("Experiment: %s", exp)
+            logger.info("Train batch: %s", config['train_batch'])
+            logger.info("Run always: %s", config.get('run_always', False))
+            logger.info("Rules: %s", "none" if not config['rules'] else config['rules'])
+            logger.info("=" * 60)
             if not config['rules']:
                 model, tokenizer, logs, metrics = self.run_experiment(train_data, test_data, model_config, sft_config)
-                result = {"model": model, "tokenizer": tokenizer, "logs": logs, "metrics": metrics}
+                result = {
+                    "model": model,
+                    "tokenizer": tokenizer,
+                    "logs": logs,
+                    "metrics": metrics,
+                    "config": {
+                        "train_batch": config["train_batch"],
+                        "model": model_config,
+                        "sft": sft_config,
+                        "rules": config["rules"],
+                    },
+                }
                 exp_results['exp_results'][exp] = result
             else:
                 for rule in config['rules']:
                     if self._check_conditions(rule['conditions'], exp_results):
                         model, tokenizer, logs, metrics = self.run_experiment(train_data, test_data, model_config, sft_config)
-                        result = {"model": model, "tokenizer": tokenizer, "logs": logs, "metrics": metrics}
+                        result = {
+                            "model": model,
+                            "tokenizer": tokenizer,
+                            "logs": logs,
+                            "metrics": metrics,
+                            "config": {
+                                "train_batch": config["train_batch"],
+                                "model": model_config,
+                                "sft": sft_config,
+                                "rules": config["rules"],
+                            },
+                        }
                         exp_results['exp_results'][exp] = result
                         if not config['run_always']:
                             return exp_results
@@ -111,6 +203,7 @@ class RuleEngine:
             config = results["config"]
             model_name = config["model_name"]
             output_dir = config['output_dir']
+            dataset_label = (self.dataset_name or "dataset").replace(os.sep, "_").replace("/", "_")
             metrics_list = []
             max_f1 = float("-inf")
             best_model = None
@@ -124,7 +217,7 @@ class RuleEngine:
                 tokenizer = exp_data["tokenizer"]
                 exp_dir = os.path.join(output_dir, "models", model_name, exp_name)
                 os.makedirs(exp_dir, exist_ok=True)
-                log_path = os.path.join(output_dir, f"logs_{self.dataset_name}_{exp_name}.csv")
+                log_path = os.path.join(output_dir, f"logs_{dataset_label}_{exp_name}.csv")
                 logs.to_csv(log_path, index=False)
                 model.save_pretrained(exp_dir)
                 tokenizer.save_pretrained(exp_dir)
@@ -134,12 +227,25 @@ class RuleEngine:
                     max_f1 = f1
                     best_model = f"{model_name}/{exp_name}"
 
-            metrics_path = os.path.join(output_dir, f"metrics_{self.dataset_name}.csv")
+            metrics_path = os.path.join(output_dir, f"metrics_{dataset_label}.csv")
             metrics_df = pd.DataFrame(metrics_list)
             if os.path.exists(metrics_path):
                 metrics_df.to_csv(metrics_path, mode="a", index=False, header=False)
             else:
                 metrics_df.to_csv(metrics_path, index=False)
+            try:
+                report_html = generate_html_report(
+                    results=results,
+                    output_dir=output_dir,
+                    dataset_name=self.dataset_name or "dataset",
+                    dataset_label=dataset_label,
+                )
+                report_path = os.path.join(output_dir, f"report_{dataset_label}.html")
+                with open(report_path, "w", encoding="utf-8") as report_file:
+                    report_file.write(report_html)
+                logger.info(f"HTML report written to {report_path}")
+            except Exception as report_error:
+                logger.warning(f"Failed to generate HTML report: {report_error}")
             logger.info(f"Results saved successfully. Best model: {best_model} (F1={max_f1:.4f})")
             return output_dir
         except Exception as e:
