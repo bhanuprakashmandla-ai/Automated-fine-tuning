@@ -236,6 +236,8 @@ Create a JSON configuration file in the `configs/` directory:
 
 **Secrets note:** You can omit `hf_token` and set `HF_TOKEN` or `HUGGINGFACE_TOKEN` in the environment instead.
 
+**Baseline note:** By default, the system now runs an automatic `exp0` baseline evaluation (no fine-tuning) before configured experiments. Set `"auto_baseline": false` at the root of your config to disable it.
+
 ### Dataset Configuration Options
 
 #### 1. CSV/JSON File

@@ -34,7 +34,10 @@ class RuleEngine:
         logger.info("=" * 60)
         finetuner = FinetuneModel(model_config, sft_config, self.system_prompt)
         model, tokenizer = finetuner.load_model()
-        model, tokenizer, logs = finetuner.train_model(model, tokenizer, train_data, test_data)
+        if mode == "finetune":
+            model, tokenizer, logs = finetuner.train_model(model, tokenizer, train_data, test_data)
+        else:
+            logs = pd.DataFrame(columns=["step", "train_loss", "eval_loss"])
         results = finetuner.evaluate_model(model, tokenizer, test_data, model_config['chat_template'])
         logger.info("=" * 60)
         logger.info("Experiment completed.")
@@ -94,6 +97,7 @@ class RuleEngine:
         experiments_data = data_loader.get_train_test_data(config['dataset'])
         test_data = experiments_data['test_data']
         experiments = config['experiments']
+        auto_baseline = config.get("auto_baseline", True)
         
         result_config = {
             "model_name": experiments['exp1']['model']['model_name'],
@@ -101,6 +105,36 @@ class RuleEngine:
             "output_dir": config['output_dir']
         }
         exp_results = {"config": result_config, "exp_results": {}}
+
+        if auto_baseline:
+            first_experiment = next(iter(experiments.values()))
+            baseline_model_config = first_experiment["model"]
+            logger.info("=" * 60)
+            logger.info("Experiment: exp0 (automatic baseline)")
+            logger.info("Train batch: none")
+            logger.info("Run always: true")
+            logger.info("Rules: none")
+            logger.info("=" * 60)
+            model, tokenizer, logs, metrics = self.run_experiment(
+                train_data=None,
+                test_data=test_data,
+                model_config=baseline_model_config,
+                sft_config=None,
+                mode="baseline_eval",
+            )
+            exp_results['exp_results']["exp0"] = {
+                "model": model,
+                "tokenizer": tokenizer,
+                "logs": logs,
+                "metrics": metrics,
+                "config": {
+                    "mode": "baseline_eval",
+                    "train_batch": None,
+                    "model": baseline_model_config,
+                    "sft": None,
+                    "rules": [],
+                },
+            }
 
         for exp, config in experiments.items():
             train_data = experiments_data[config['train_batch']]
