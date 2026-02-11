@@ -30,6 +30,23 @@ logger = logging.getLogger(__name__)
 import argparse
 
 
+def load_env_file(env_path=".env"):
+    """Load environment variables from a .env file if they are not already set."""
+    if not os.path.exists(env_path):
+        return
+
+    with open(env_path, "r", encoding="utf-8") as env_file:
+        for raw_line in env_file:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
 def install_packages_command():
     """Install required packages with GPU detection."""
     logger.info("=" * 60)
@@ -56,6 +73,7 @@ def install_packages_command():
 
 
 def main():
+    load_env_file()
     parser = argparse.ArgumentParser(
         description='Automated Fine-tuning System',
         formatter_class=argparse.RawDescriptionHelpFormatter,
