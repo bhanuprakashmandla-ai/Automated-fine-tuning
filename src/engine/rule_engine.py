@@ -21,16 +21,19 @@ class RuleEngine:
         self.output_dir = None
         self.dataset_name = None
 
-    def run_experiment(self, train_data, test_data, model_config, sft_config):
+    def run_experiment(self, train_data, test_data, model_config, sft_config=None, mode="finetune"):
         logger.info("=" * 60)
         logger.info(f"Starting experiment for model: {model_config.get('model_name', 'unknown')}")
         logger.info(f"Chat template: {model_config.get('chat_template', 'unknown')}")
-        logger.info(
-            "SFT config: batch_size=%s, epochs=%s, lr=%s",
-            sft_config.get("batch_size"),
-            sft_config.get("epochs"),
-            sft_config.get("learning_rate"),
-        )
+        if mode == "finetune":
+            logger.info(
+                "SFT config: batch_size=%s, epochs=%s, lr=%s",
+                sft_config.get("batch_size"),
+                sft_config.get("epochs"),
+                sft_config.get("learning_rate"),
+            )
+        else:
+            logger.info("Mode: baseline evaluation (no fine-tuning)")
         logger.info("=" * 60)
         finetuner = FinetuneModel(model_config, sft_config, self.system_prompt)
         model, tokenizer = finetuner.load_model()
@@ -115,13 +118,12 @@ class RuleEngine:
             logger.info("Run always: true")
             logger.info("Rules: none")
             logger.info("=" * 60)
-            model, tokenizer, logs, metrics = self.run_experiment(
-                train_data=None,
-                test_data=test_data,
-                model_config=baseline_model_config,
-                sft_config=None,
-                mode="baseline_eval",
-            )
+            # Run baseline via direct evaluate-only path to avoid signature conflicts
+            # across branches and keep baseline independent of training flow.
+            finetuner = FinetuneModel(baseline_model_config, None, self.system_prompt)
+            model, tokenizer = finetuner.load_model()
+            logs = pd.DataFrame(columns=["step", "train_loss", "eval_loss"])
+            metrics = finetuner.evaluate_model(model, tokenizer, test_data, baseline_model_config['chat_template'])
             exp_results['exp_results']["exp0"] = {
                 "model": model,
                 "tokenizer": tokenizer,
