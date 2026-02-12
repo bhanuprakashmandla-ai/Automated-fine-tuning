@@ -2,6 +2,7 @@
 
 import pandas as pd
 import logging
+import os
 
 from .rule_engine import RuleEngine
 
@@ -25,8 +26,9 @@ class RecommendationEngine:
             results_dir = rule_engine.save_and_summarize_results(model_results)
 
         dataset_name = rule_engine.dataset_name
+        dataset_label = (dataset_name or "dataset").replace(os.sep, "_").replace("/", "_")
         try:
-            metrics_df = pd.read_csv(f"{results_dir}/metrics_{dataset_name}.csv")
+            metrics_df = pd.read_csv(f"{results_dir}/metrics_{dataset_label}.csv")
             if metrics_df.empty:
                 return "No metrics found for the experiments. Please run the experiments again."
             if dataset_name:
