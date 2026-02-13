@@ -55,10 +55,12 @@ class RecommendationEngine:
     def get_best_model(self):
         rule_engine = RuleEngine()
         results_dir = None
+        stop_reasons = []
 
         for config_path in self.config_paths:
             logger.info(f"Running experiments from: {config_path}")
             model_results = rule_engine.run(config_path)
+            stop_reasons.extend(model_results.get("stop_reasons", []))
             results_dir = rule_engine.save_and_summarize_results(model_results)
 
         dataset_name = rule_engine.dataset_name
@@ -76,12 +78,17 @@ class RecommendationEngine:
             decision_title, decision_reason = self._build_decision_summary(metrics_df, dataset_name)
             best_row = sorted_metrics_df.iloc[0]
 
+            stop_reason_text = ""
+            if stop_reasons:
+                stop_reason_text = "\nPipeline stop details:\n- " + "\n- ".join(stop_reasons)
+
             return (
                 f"{decision_title}\n"
                 f"Reason: {decision_reason}\n"
                 f"Best Model for dataset '{dataset_name or 'All Datasets'}': "
                 f"{best_row['model']}/{best_row['exp']} with F1 Score: {best_row['f1']} "
                 f"and Latency: {best_row['latency']}"
+                f"{stop_reason_text}"
             )
         except FileNotFoundError:
             return "Metrics file not found. Please ensure the path is correct and experiments have been saved."

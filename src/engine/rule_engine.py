@@ -4,6 +4,7 @@ import json
 import operator
 import os
 import logging
+from pandas.errors import ParserError
 
 import pandas as pd
 
@@ -171,7 +172,7 @@ class RuleEngine:
             "chat_template": experiments['exp1']['model']['chat_template'],
             "output_dir": config['output_dir']
         }
-        exp_results = {"config": result_config, "exp_results": {}}
+        exp_results = {"config": result_config, "exp_results": {}, "stop_reasons": []}
 
         if auto_baseline:
             first_experiment = next(iter(experiments.values()))
@@ -235,6 +236,7 @@ class RuleEngine:
                 continue
 
             experiment_ran = False
+            last_rule_failure_reason = None
             for rule_idx, rule in enumerate(exp_config['rules'], start=1):
                 passed, trace = self._evaluate_rule_conditions(rule['conditions'], exp_results)
                 for condition_trace in trace:
@@ -264,6 +266,19 @@ class RuleEngine:
                         )
 
                 if not passed:
+                    if trace:
+                        last_trace = trace[-1]
+                        condition = last_trace["condition"]
+                        if last_trace["status"] == "unavailable":
+                            last_rule_failure_reason = (
+                                f"rule {rule_idx} unavailable because {condition['left']} {condition['op']} {condition['right']}"
+                                f" could not be evaluated ({last_trace['reason']})"
+                            )
+                        else:
+                            last_rule_failure_reason = (
+                                f"rule {rule_idx} failed because {condition['left']} {condition['op']} {condition['right']}"
+                                f" evaluated as {float(last_trace['left_val']):.6f} {condition['op']} {float(last_trace['right_val']):.6f}"
+                            )
                     logger.info("[STOP] %s rule %s failed; checking next rule if available.", exp, rule_idx)
                     continue
 
@@ -285,11 +300,18 @@ class RuleEngine:
                 exp_results['exp_results'][exp] = result
                 experiment_ran = True
                 if not exp_config['run_always']:
-                    logger.info("[STOP] %s finished and run_always is false. Pipeline stops here by design.", exp)
+                    stop_reason = f"{exp} stopped pipeline because run_always is false after successful run."
+                    exp_results["stop_reasons"].append(stop_reason)
+                    logger.info("[STOP] %s", stop_reason)
                     return exp_results
 
             if not experiment_ran:
-                logger.info("[STOP] %s did not run because no rule passed.", exp)
+                if last_rule_failure_reason:
+                    stop_reason = f"{exp} did not run because no rule passed; last failure: {last_rule_failure_reason}."
+                else:
+                    stop_reason = f"{exp} did not run because no rule passed."
+                exp_results["stop_reasons"].append(stop_reason)
+                logger.info("[STOP] %s", stop_reason)
         return exp_results
 
     def save_and_summarize_results(self, results):
@@ -326,9 +348,16 @@ class RuleEngine:
             metrics_path = os.path.join(output_dir, f"metrics_{dataset_label}.csv")
             metrics_df = pd.DataFrame(metrics_list)
             if os.path.exists(metrics_path):
-                metrics_df.to_csv(metrics_path, mode="a", index=False, header=False)
-            else:
-                metrics_df.to_csv(metrics_path, index=False)
+                try:
+                    existing_metrics_df = pd.read_csv(metrics_path)
+                except ParserError:
+                    logger.warning(
+                        "Existing metrics file is malformed and will be repaired: %s",
+                        metrics_path,
+                    )
+                    existing_metrics_df = pd.read_csv(metrics_path, on_bad_lines="skip")
+                metrics_df = pd.concat([existing_metrics_df, metrics_df], ignore_index=True, sort=False)
+            metrics_df.to_csv(metrics_path, index=False)
             try:
                 report_html = generate_html_report(
                     results=results,
