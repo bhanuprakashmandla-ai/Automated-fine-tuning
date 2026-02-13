@@ -183,6 +183,9 @@ class RuleEngine:
             logger.info("Rules: none")
             logger.info("Reason: baseline always runs first for comparison")
             logger.info("=" * 60)
+            logger.info("=" * 60)
+            # Run baseline via direct evaluate-only path to avoid signature conflicts
+            # across branches and keep baseline independent of training flow.
             finetuner = FinetuneModel(baseline_model_config, None, self.system_prompt)
             model, tokenizer = finetuner.load_model()
             logs = pd.DataFrame(columns=["step", "train_loss", "eval_loss"])
