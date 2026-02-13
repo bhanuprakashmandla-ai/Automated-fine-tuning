@@ -216,7 +216,8 @@ Create a JSON configuration file in the `configs/` directory:
         "max_seq_len": 2048,
         "rank": 64,
         "alpha": 128,
-        "dropout": 0
+        "dropout": 0,
+        "eval_batch_size": 4
       },
       "sft": {
         "batch_size": 8,
@@ -237,6 +238,12 @@ Create a JSON configuration file in the `configs/` directory:
 **Secrets note:** You can omit `hf_token` and set `HF_TOKEN` or `HUGGINGFACE_TOKEN` in the environment instead.
 
 **Baseline note:** By default, the system now runs an automatic `exp0` baseline evaluation (no fine-tuning) before configured experiments. Set `"auto_baseline": false` at the root of your config to disable it.
+
+**Evaluation throughput note:** Set `model.eval_batch_size` (default `4`) to run evaluation generation in batches for faster baseline and experiment scoring on capable GPUs.
+
+**Terminal decision note:** Final output now prints a decision summary in one of these categories: `model is finetunable`, `model validation not increasing`, or `model is scalable via RAG`.
+
+**Experiment trace note:** During rule-based execution, terminal logs now print why each experiment continues or stops, and training diagnostics such as `validation loss is increasing`, `training loss is increasing`, and possible overfitting alerts.
 
 ### Dataset Configuration Options
 

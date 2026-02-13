@@ -80,6 +80,13 @@ def validate_config(config: Dict[str, Any], config_path: str | None = None) -> N
             f"{context}.model",
         )
 
+        if "eval_batch_size" in model_config:
+            eval_batch_size = model_config["eval_batch_size"]
+            if not isinstance(eval_batch_size, int) or eval_batch_size < 1:
+                raise ValueError(
+                    f"{prefix}{context}.model.eval_batch_size must be an integer >= 1 when provided."
+                )
+
         sft_config = exp_config["sft"]
         _require_keys(
             sft_config,

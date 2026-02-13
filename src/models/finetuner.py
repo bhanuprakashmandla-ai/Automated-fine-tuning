@@ -223,28 +223,40 @@ class FinetuneModel:
         model.eval()
 
         results = []
-        embed_model = SentenceTransformer(
-            "sentence-transformers/all-MiniLM-L6-v2"
-        )
+        eval_batch_size = int(self.model_config.get("eval_batch_size", 4) or 4)
+        eval_batch_size = max(eval_batch_size, 1)
+        rows = list(test_data)
+        if not rows:
+            logger.warning("No rows available in test_data during evaluation.")
+            return {"precision": 0.0, "recall": 0.0, "f1": 0.0, "latency": 0.0, "semantic_similarity": 0.0}
 
-        for row in test_data:
-            start = time.time()
+        logger.info("Evaluating %s samples with eval_batch_size=%s", len(rows), eval_batch_size)
 
-            messages = [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": row["question"]},
-            ]
+        embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-            text = tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
-            )
+        for start_idx in range(0, len(rows), eval_batch_size):
+            batch_rows = rows[start_idx:start_idx + eval_batch_size]
+            batch_start_time = time.time()
 
-            inputs = tokenizer(text, return_tensors="pt").to(device)
+            batch_texts = []
+            references = []
+            for row in batch_rows:
+                messages = [
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": row["question"]},
+                ]
+                text = tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                batch_texts.append(text)
+                references.append(str(row["answer"]))
+
+            inputs = tokenizer(batch_texts, return_tensors="pt", padding=True).to(device)
 
             with torch.no_grad():
-                output = model.generate(
+                outputs = model.generate(
                     **inputs,
                     max_new_tokens=125,
                     temperature=1,
@@ -252,26 +264,32 @@ class FinetuneModel:
                     top_k=64,
                 )
 
-            prediction = tokenizer.decode(
-                output[0][inputs["input_ids"].shape[1]:],
-                skip_special_tokens=True,
-            ).strip()
+            predictions = []
+            for idx in range(len(batch_rows)):
+                prompt_len = int(inputs["attention_mask"][idx].sum().item())
+                prediction = tokenizer.decode(
+                    outputs[idx][prompt_len:],
+                    skip_special_tokens=True,
+                ).strip()
+                predictions.append(prediction)
 
-            sim = util.cos_sim(
-                embed_model.encode(prediction, convert_to_tensor=True),
-                embed_model.encode(row["answer"], convert_to_tensor=True),
-            ).item()
+            prediction_embeddings = embed_model.encode(predictions, convert_to_tensor=True)
+            reference_embeddings = embed_model.encode(references, convert_to_tensor=True)
+            similarities = util.cos_sim(prediction_embeddings, reference_embeddings).diagonal().tolist()
 
-            precision, recall, f1 = self.token_f1(
-                prediction, row["answer"]
-            )
+            batch_latency_per_sample = (time.time() - batch_start_time) / len(batch_rows)
 
-            results.append({
-                "precision": precision,
-                "recall": recall,
-                "f1": f1,
-                "latency": time.time() - start,
-            })
+            for prediction, reference, similarity in zip(predictions, references, similarities):
+                precision, recall, f1 = self.token_f1(prediction, reference)
+                results.append(
+                    {
+                        "precision": precision,
+                        "recall": recall,
+                        "f1": f1,
+                        "latency": batch_latency_per_sample,
+                        "semantic_similarity": float(similarity),
+                    }
+                )
 
         return pd.DataFrame(results).mean().to_dict()
 
