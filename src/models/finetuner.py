@@ -259,9 +259,13 @@ class FinetuneModel:
                 outputs = model.generate(
                     **inputs,
                     max_new_tokens=125,
+<<<<<<< codex/set-default-temperature-value-to-0-hz2njw
+                    do_sample=False,
+=======
                     temperature=0,
                     top_p=0.95,
                     top_k=64,
+>>>>>>> main
                 )
 
             predictions = []
