@@ -52,6 +52,11 @@ class RuleEngine:
         
         def get_metric(results, key):
             exp_name, metric_name = key.split(".")
+            if exp_name not in results['exp_results']:
+                raise KeyError(
+                    f"Experiment '{exp_name}' has no results yet. "
+                    "Any rule depending on it cannot be evaluated right now."
+                )
             exp_data = results['exp_results'][exp_name]
             if metric_name in exp_data["metrics"]:
                 return exp_data["metrics"][metric_name]
@@ -64,24 +69,40 @@ class RuleEngine:
             if metric_name == "last_eval_loss":
                 if "eval_loss" not in logs.columns:
                     raise KeyError(f"Column 'eval_loss' not found in logs for experiment '{exp_name}'. Available columns: {list(logs.columns)}")
-                return float(logs["eval_loss"].dropna().iloc[-1])
+                eval_loss = logs["eval_loss"].dropna()
+                if eval_loss.empty:
+                    raise KeyError(f"No non-null 'eval_loss' values found in logs for experiment '{exp_name}'.")
+                return float(eval_loss.iloc[-1])
             if metric_name == "min_eval_loss":
                 if "eval_loss" not in logs.columns:
                     raise KeyError(f"Column 'eval_loss' not found in logs for experiment '{exp_name}'. Available columns: {list(logs.columns)}")
-                return float(logs["eval_loss"].dropna().min())
+                eval_loss = logs["eval_loss"].dropna()
+                if eval_loss.empty:
+                    raise KeyError(f"No non-null 'eval_loss' values found in logs for experiment '{exp_name}'.")
+                return float(eval_loss.min())
             if metric_name == "last_train_loss":
                 if "train_loss" not in logs.columns:
                     raise KeyError(f"Column 'train_loss' not found in logs for experiment '{exp_name}'. Available columns: {list(logs.columns)}")
-                return float(logs["train_loss"].dropna().iloc[-1])
+                train_loss = logs["train_loss"].dropna()
+                if train_loss.empty:
+                    raise KeyError(f"No non-null 'train_loss' values found in logs for experiment '{exp_name}'.")
+                return float(train_loss.iloc[-1])
             if metric_name == "min_train_loss":
                 if "train_loss" not in logs.columns:
                     raise KeyError(f"Column 'train_loss' not found in logs for experiment '{exp_name}'. Available columns: {list(logs.columns)}")
-                return float(logs["train_loss"].dropna().min())
+                train_loss = logs["train_loss"].dropna()
+                if train_loss.empty:
+                    raise KeyError(f"No non-null 'train_loss' values found in logs for experiment '{exp_name}'.")
+                return float(train_loss.min())
             raise KeyError(f"Unknown metric '{metric_name}' for {exp_name}")
 
         for cond in conditions:
-            left_val = get_metric(results, cond["left"])
-            right_val = get_metric(results, cond["right"])
+            try:
+                left_val = get_metric(results, cond["left"])
+                right_val = get_metric(results, cond["right"])
+            except KeyError as err:
+                logger.warning("Skipping rule condition %s due to unavailable metric: %s", cond, err)
+                return False
             op_func = OPS[cond["op"]]
             if not op_func(left_val, right_val):
                 return False
