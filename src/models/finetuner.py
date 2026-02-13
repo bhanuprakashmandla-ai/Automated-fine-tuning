@@ -255,17 +255,18 @@ class FinetuneModel:
 
             inputs = tokenizer(batch_texts, return_tensors="pt", padding=True).to(device)
 
+            # Keep evaluation deterministic across all experiments.
+            # Hard-code greedy decoding so checkpoint generation_config values
+            # (e.g., do_sample=True) cannot change evaluation behavior.
+            generation_kwargs = {
+                "max_new_tokens": 125,
+                "do_sample": False,
+            }
+
             with torch.no_grad():
                 outputs = model.generate(
                     **inputs,
-                    max_new_tokens=125,
-<<<<<<< codex/set-default-temperature-value-to-0-hz2njw
-                    do_sample=False,
-=======
-                    temperature=0,
-                    top_p=0.95,
-                    top_k=64,
->>>>>>> main
+                    **generation_kwargs,
                 )
 
             predictions = []
