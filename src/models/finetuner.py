@@ -259,7 +259,7 @@ class FinetuneModel:
                 outputs = model.generate(
                     **inputs,
                     max_new_tokens=125,
-                    temperature=1,
+                    temperature=0,
                     top_p=0.95,
                     top_k=64,
                 )
